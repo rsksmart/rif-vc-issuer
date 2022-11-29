@@ -73,7 +73,7 @@ export class ListingVerificationService {
         }
 
         const vcIssuanceChallenge = this.getChallenge();
-        const hashMsg = ethers.utils.id(`${vcIssuanceChallenge}`);
+        const hashMsg = ethers.utils.id(vcIssuanceChallenge);
         const signature = await signMessage(process.env.RIF_OWNER_PRIV_KEY, hashMsg);
 
         await this.cacheManager.set<RegistrationData>(registrationId, { ...record, vcIssuanceChallenge }, { ttl: 0 });

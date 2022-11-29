@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { createVerifiableCredentialJwt, Issuer } from 'did-jwt-vc';
+import didJWT from 'did-jwt';
 import { EthrDID } from 'ethr-did';
 import { signMessage } from '../../utils/crypto';
 import { VcRequest } from '../types';
@@ -11,6 +12,7 @@ export class IssueVcService {
     private issuers: Map<string, Issuer>;
 
     constructor (){
+        console.log('ISSUER_PRIV_KEY: ' + process.env.ISSUER_PRIV_KEY);
         this.issuers = new Map();
         const issuer = new EthrDID({
             identifier: process.env.ISSUER_ADDR,
@@ -35,15 +37,18 @@ export class IssueVcService {
                 jws: signature
             }
         });
-        console.log("🚀 ~ file: issue-vc.service.ts ~ line 36 ~ IssueVcService ~ issueVc ~ payload", payload)
+        
+        console.log("🚀 ~ file: issue-vc.service.ts ~ line 39 ~ IssueVcService ~ issueVc ~ payload", payload)
 
         const jwt = await createVerifiableCredentialJwt(
             payload,
             this.issuers.get(process.env.ISSUER_ADDR)
         );
 
-        console.log("🚀 ~ file: issue-vc.service.ts ~ line 45 ~ IssueVcService ~ issueVc ~ jws", jwt)
+        console.log("🚀 ~ file: issue-vc.service.ts ~ line 45 ~ IssueVcService ~ issueVc ~ jws", jwt);
 
+        console.log(didJWT.decodeJWT(jwt));
+        
         return { jwt };
     }
 }

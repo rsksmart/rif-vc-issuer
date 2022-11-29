@@ -1,0 +1,8 @@
+.vscode
+.eslint
+.gitignore
+.prettierrc
+node_modules
+dist
+test
+vc-registry

@@ -21,7 +21,7 @@ export class BaseExceptionFilter<T extends Error> implements ExceptionFilter<T> 
   }
 }
 
-@Catch(RecordAlreadyExistsError, VerificationError)
+@Catch(RecordAlreadyExistsError)
 export class RecordAlreadyExistsExceptionFilter extends BaseExceptionFilter<RecordAlreadyExistsError> {
   constructor() {
     super(HttpStatus.BAD_REQUEST);
