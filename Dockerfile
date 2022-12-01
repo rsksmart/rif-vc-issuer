@@ -10,11 +10,19 @@ USER node
 WORKDIR /home/node
 
 # Copy lockfiles and install dependencies.
-COPY --chown=node:node package*.json ./
+COPY --chown=node:node \
+        package*.json \
+        tsconfig*.json \
+        nest-cli.json \
+        ./
+
 RUN npm ci
 
 # Copy source code and build.
-COPY --chown=node:node . ./
+COPY --chown=node:node \
+        src \
+        ./src
+
 RUN npm run build
 
 
