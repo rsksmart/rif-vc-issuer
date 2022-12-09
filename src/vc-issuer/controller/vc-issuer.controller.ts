@@ -4,17 +4,15 @@ import { VcRequest } from '../types';
 
 @Controller('vc-issuer')
 export class VcIssuerController {
+  constructor(private vcIssuerService: IssueVcService) {}
 
-    constructor(private vcIssuerService: IssueVcService) {}
+  @Get('ping')
+  ping(): string {
+    return 'pong';
+  }
 
-    @Get('ping')
-    ping(): string {
-      return 'pong';
-    }
-
-    @Post()
-    requestVC(@Body() req: VcRequest) {
-      return this.vcIssuerService.issueVc(req);
-    }
-  
+  @Post()
+  requestVC(@Body() req: VcRequest) {
+    return this.vcIssuerService.issueVc(req);
+  }
 }

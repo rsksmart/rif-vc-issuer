@@ -11,7 +11,7 @@ app.get('/:cid', async(req, res) => {
     if (!req.params) {
         throw new Error('empty cid');
     }
-    console.log("🚀 ~ file: index.js ~ line 11 ~ app.get ~ req.body", req.params)
+    this.logger.debug("🚀 ~ file: index.js ~ line 11 ~ app.get ~ req.body", req.params)
     const content = await node.cat(req.params.cid);
     const decoder = new TextDecoder()
     let data = ''
@@ -30,7 +30,7 @@ app.post('/', async(req, res) => {
     if (!req.body) {
         throw new Error('empty body');
     }
-    console.log("🚀 ~ file: index.js ~ line 11 ~ app.get ~ req.body", req.body)
+    this.logger.debug("🚀 ~ file: index.js ~ line 11 ~ app.get ~ req.body", req.body)
     const { cid, path } = await node.add(JSON.stringify(req.body))
     res.send({
         cid: cid.toString(),
@@ -39,5 +39,5 @@ app.post('/', async(req, res) => {
 })
 
 app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`)
+  this.logger.debug(`Example app listening on port ${port}`)
 })

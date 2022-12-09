@@ -9,7 +9,9 @@ describe('ListingVerificationService', () => {
       providers: [ListingVerificationService],
     }).compile();
 
-    service = module.get<ListingVerificationService>(ListingVerificationService);
+    service = module.get<ListingVerificationService>(
+      ListingVerificationService,
+    );
   });
 
   it('should be defined', () => {

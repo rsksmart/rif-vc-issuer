@@ -9,7 +9,9 @@ describe('ListingVerificationController', () => {
       controllers: [ListingVerificationController],
     }).compile();
 
-    controller = module.get<ListingVerificationController>(ListingVerificationController);
+    controller = module.get<ListingVerificationController>(
+      ListingVerificationController,
+    );
   });
 
   it('should be defined', () => {

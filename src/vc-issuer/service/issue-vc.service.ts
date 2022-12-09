@@ -1,54 +1,61 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { createVerifiableCredentialJwt, Issuer } from 'did-jwt-vc';
 import didJWT from 'did-jwt';
-import { EthrDID } from 'ethr-did';
-import { signMessage } from '../../utils/crypto';
+import { createIssuerIdentity } from '../../utils/crypto';
 import { VcRequest } from '../types';
 import { createServiceVerificationCredentialPayload } from '../vcs/rif-gateway/service-validated';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class IssueVcService {
+  private readonly logger = new Logger(IssueVcService.name);
 
-    private issuers: Map<string, Issuer>;
+  private issuers: Map<string, Issuer>;
 
-    constructor (){
-        console.log('ISSUER_PRIV_KEY: ' + process.env.ISSUER_PRIV_KEY);
-        this.issuers = new Map();
-        const issuer = new EthrDID({
-            identifier: process.env.ISSUER_ADDR,
-            privateKey: process.env.ISSUER_PRIV_KEY,
-            alg: 'ES256K',
-            signer: (data: string) => signMessage(process.env.ISSUER_PRIV_KEY, data)
-        }) as Issuer;
+  constructor(private configService: ConfigService) {
+    this.logger.debug('ISSUER_PRIV_KEY: ' + this.configService.get<string>('issuer.privateKey'));
 
-        this.issuers.set(process.env.ISSUER_ADDR, issuer);
-    }
+    this.issuers = new Map();
+    const issuer = createIssuerIdentity(this.configService.get<string>('issuer.privateKey')) as Issuer;
+    this.issuers.set(this.configService.get<string>('issuer.address'), issuer);
+  }
 
-    async issueVc({ credentialPayload, vcIssuanceChallenge, did: sub, signature }: VcRequest) {
-        const payload = createServiceVerificationCredentialPayload({ 
-            ...credentialPayload,
-            iss: process.env.ISSUER_ADDR,
-            sub,
-            nbf: new Date().getSeconds(),
-            id: '', // TODO: credential id,
-            proof: {
-                type: 'JwtProof2020',
-                challenge: vcIssuanceChallenge,
-                jws: signature
-            }
-        });
-        
-        console.log("🚀 ~ file: issue-vc.service.ts ~ line 39 ~ IssueVcService ~ issueVc ~ payload", payload)
+  async issueVc({
+    credentialPayload,
+    vcIssuanceChallenge,
+    did: sub,
+    signature,
+  }: VcRequest) {
+    const payload = createServiceVerificationCredentialPayload({
+      ...credentialPayload,
+      iss: this.configService.get<string>('issuer.address'),
+      sub,
+      nbf: new Date().getSeconds(),
+      id: '', // TODO: credential id,
+      proof: {
+        type: 'JwtProof2020',
+        challenge: vcIssuanceChallenge,
+        jws: signature,
+      },
+    });
 
-        const jwt = await createVerifiableCredentialJwt(
-            payload,
-            this.issuers.get(process.env.ISSUER_ADDR)
-        );
+    this.logger.debug(
+      '🚀 ~ file: issue-vc.service.ts ~ line 39 ~ IssueVcService ~ issueVc ~ payload',
+      payload,
+    );
 
-        console.log("🚀 ~ file: issue-vc.service.ts ~ line 45 ~ IssueVcService ~ issueVc ~ jws", jwt);
+    const jwt = await createVerifiableCredentialJwt(
+      payload,
+      this.issuers.get(this.configService.get<string>('issuer.address')),
+    );
 
-        console.log(didJWT.decodeJWT(jwt));
-        
-        return { jwt };
-    }
+    this.logger.debug(
+      '🚀 ~ file: issue-vc.service.ts ~ line 45 ~ IssueVcService ~ issueVc ~ jws',
+      jwt,
+    );
+
+    this.logger.debug(didJWT.decodeJWT(jwt));
+
+    return { jwt };
+  }
 }

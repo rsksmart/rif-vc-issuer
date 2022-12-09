@@ -6,6 +6,6 @@ import { ListingVerificationService } from './service/listing-verification.servi
 @Module({
   controllers: [ListingVerificationController],
   providers: [ListingVerificationService],
-  imports: [CacheModule.register(), HttpModule]
+  imports: [CacheModule.register(), HttpModule],
 })
 export class ListingVerificationModule {}
