@@ -1,10 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { createVerifiableCredentialJwt, Issuer } from 'did-jwt-vc';
-import didJWT from 'did-jwt';
+import { createVerifiableCredentialJwt, Issuer, JwtCredentialPayload, verifyCredential } from 'did-jwt-vc';
 import { createIssuerIdentity } from '../../utils/crypto';
-import { VcRequest } from '../types';
-import { createServiceVerificationCredentialPayload } from '../vcs/rif-gateway/service-validated';
+import { CredentialArgs, CredentialType, VcRequest } from '../types';
 import { ConfigService } from '@nestjs/config';
+import { createEmailCredentialPayload } from '../vcs/rif-gateway/email';
+import { createProviderCredentialPayload } from '../vcs/rif-gateway/provider';
+import { Resolver } from 'did-resolver'
+import { getResolver } from 'ethr-did-resolver'
+import { toChecksumAddress } from 'rskjs-util'
 
 @Injectable()
 export class IssueVcService {
@@ -12,50 +15,74 @@ export class IssueVcService {
 
   private issuers: Map<string, Issuer>;
 
+  private didResolver: Resolver;
+
   constructor(private configService: ConfigService) {
     this.logger.debug('ISSUER_PRIV_KEY: ' + this.configService.get<string>('issuer.privateKey'));
 
     this.issuers = new Map();
     const issuer = createIssuerIdentity(this.configService.get<string>('issuer.privateKey')) as Issuer;
     this.issuers.set(this.configService.get<string>('issuer.address'), issuer);
+
+    // TODO: move this to a separate class
+    const providerConfig = {
+      name: "rsk", 
+      chainId: '0x7a69',
+      rpcUrl: 'http://127.0.0.1:8545/', 
+      registry: '0x5fbdb2315678afecb367f032d93f642f64180aa3'
+    };
+    const etherDidResolver = getResolver(providerConfig);
+    this.didResolver = new Resolver(etherDidResolver);
   }
 
-  async issueVc({
+  async issueVc(vcRequest: VcRequest) {
+    return this.createJWTCredential(vcRequest);
+  }
+
+  private async createJWTCredential(vcRequest: VcRequest) {
+    const { credentialType } = vcRequest;
+    const credentialPayload = await this.getCredentialPayload(credentialType, vcRequest);
+
+    const jwt = await createVerifiableCredentialJwt(
+      credentialPayload,
+      this.issuers.get(this.configService.get<string>('issuer.address')),
+    );
+
+    return jwt;
+  }
+
+  private async getCredentialPayload(credentialType: CredentialType, {
     credentialPayload,
     vcIssuanceChallenge,
     did: sub,
     signature,
   }: VcRequest) {
-    const payload = createServiceVerificationCredentialPayload({
+
+    const credentialData: CredentialArgs = {
       ...credentialPayload,
-      iss: this.configService.get<string>('issuer.address'),
-      sub,
+      iss: this.configService.get<string>('issuer.address').toLowerCase(),
+      sub: sub.toLowerCase(),
       nbf: new Date().getSeconds(),
-      id: '', // TODO: credential id,
       proof: {
         type: 'JwtProof2020',
         challenge: vcIssuanceChallenge,
         jws: signature,
       },
-    });
+    };
 
-    this.logger.debug(
-      '🚀 ~ file: issue-vc.service.ts ~ line 39 ~ IssueVcService ~ issueVc ~ payload',
-      payload,
-    );
+    let vcPayload: JwtCredentialPayload;
+    if (String(credentialType) === 'EmailVerification') {
+      vcPayload = createEmailCredentialPayload(credentialData);
+    } else if (String(credentialType) === 'RIFGatewayProviderVerification') {
+      vcPayload = createProviderCredentialPayload(credentialData);
+    } else { 
+      throw new Error('Invalid credential type');
+    }
 
-    const jwt = await createVerifiableCredentialJwt(
-      payload,
-      this.issuers.get(this.configService.get<string>('issuer.address')),
-    );
+    return vcPayload;
+  }
 
-    this.logger.debug(
-      '🚀 ~ file: issue-vc.service.ts ~ line 45 ~ IssueVcService ~ issueVc ~ jws',
-      jwt,
-    );
-
-    this.logger.debug(didJWT.decodeJWT(jwt));
-
-    return { jwt };
+  public async verifyCredentialJWT(vc: string) {
+    return verifyCredential(vc, this.didResolver);
   }
 }

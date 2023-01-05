@@ -2,7 +2,6 @@ import {
   JwtCredentialPayload,
   JwtCredentialSubject,
 } from 'did-jwt-vc/lib/types';
-import { ServiceType } from '../constants';
 
 export type BaseVC<T extends JwtCredentialSubject> = {
   id?: string;
@@ -13,16 +12,13 @@ export type BaseVC<T extends JwtCredentialSubject> = {
   credentialSubject: T;
 };
 
-export type ServiceClaims = {
-  type: ServiceType;
-  contractAddress: string;
-};
 
-export type ServiceVerificationClaim = Record<'serviceVerified', ServiceClaims>;
+export type CredentialType = 'EmailVerification' | 'RIFGatewayProviderVerification';
 
 export type VcRequest = {
   did: string;
-  credentialPayload: ServiceClaims;
+  credentialType: CredentialType;
+  credentialPayload: JwtCredentialSubject;
   vcIssuanceChallenge: string;
   signature: string;
 };
@@ -38,10 +34,14 @@ export type Proof = {
   jws: string;
 };
 
-export type VerifyServiceVCArgs = Pick<
+export type CredentialArgs = Pick<
   JwtCredentialPayload,
   'iss' | 'sub' | 'nbf'
-> & {
+> & JwtCredentialSubject & {
   proof: Proof;
-  [prop: string]: any;
 };
+
+
+export type VerifyCredentialRequest = {
+  jwt: string;
+}
