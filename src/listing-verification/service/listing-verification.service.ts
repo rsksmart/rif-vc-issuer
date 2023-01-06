@@ -12,57 +12,64 @@ import {
   NotAuthorizedError,
   RecordAlreadyExistsError,
   RecordNotFoundError,
-  VerificationError,
 } from '../errors';
 import {
+  AcknowledgeVerification,
   RegistrationData,
   ServiceRegistrationRequest,
-  ServiceVerificationCredentialPayload,
   VCRequest,
   VerificationRequest,
 } from '../types';
-import { map, Observable } from 'rxjs';
-import { serviceVerificationStatus } from '../constants';
+import { firstValueFrom, forkJoin, map, Observable, switchMap, zip } from 'rxjs';
+import { VerificationSenderFactory } from '../email-service/verificationSenderFactory';
+import { ConfigService } from '@nestjs/config';
+import { EmailAddressClaim } from '../../vc-issuer/vcs/rif-gateway/email';
+import { ServiceProviderClaim } from '../../vc-issuer/vcs/rif-gateway/provider';
+import { IRifGateway, RifGatewayContract } from '../../rif-gateway-contract/rif-gateway-contract.service';
+
 
 @Injectable()
 export class ListingVerificationService {
 
   private readonly logger = new Logger(ListingVerificationService.name);
+  private rifGatewayContract: IRifGateway;
 
   constructor(
     @Inject(CACHE_MANAGER) private cacheManager: CacheStore,
+    private configService: ConfigService,
     private http: HttpService,
-  ) {}
+    private rifGateway: RifGatewayContract,
+  ) {
+    this.rifGatewayContract = this.rifGateway.getInstance() as unknown as IRifGateway;
+  }
 
   async getRegistration(registrationId: string): Promise<RegistrationData> {
     return this.getRecordIfExists(registrationId);
   }
 
-  async registration({
+  async requestVerification({
     did,
-    contractAddress,
+    email
   }: ServiceRegistrationRequest): Promise<RegistrationData> {
-    const verificationChallenge = this.getChallenge();
-    const registrationId = this.generateRegistrationId(did, contractAddress);
-    
-    this.logger.debug("registration ~ verificationChallenge", verificationChallenge)
+    const registrationId = this.generateRegistrationId(did, email);
 
     const registration = await this.cacheManager.get<RegistrationData>(
       registrationId,
     );
+
     if (registration) {
       throw new RecordAlreadyExistsError('service registration already exists');
     }
 
     const verificationExpirationDate = (Date.now() + TTL_CACHE).toString();
     const registrationData: RegistrationData = {
-      did,
+      did: did.toLowerCase(),
       registrationId,
-      verificationChallenge,
-      contractAddress,
+      verificationChallenge: null,
       verificationExpirationDate,
-      status: 'registered',
-    };
+      email,
+      status: 'created',
+  };
 
     await this.cacheManager.set<RegistrationData>(
       registrationId,
@@ -70,22 +77,73 @@ export class ListingVerificationService {
       { ttl: TTL_CACHE },
     );
 
-    
-
     return registrationData;
   }
 
-  // TODO: defined what other properties we need to validate the service
-  async requestVerification({
+
+  async verify({
     registrationId,
-    signature,
+    accepted
   }: VerificationRequest) {
     const registrationData = await this.getRecordIfExists(registrationId);
-    const { verificationChallenge, did, contractAddress, status } =
+    const { email: to, status, did } =
       registrationData;
 
-    if (!serviceVerificationStatus[status]) {
-      throw new VerificationError('service already verified');
+    if (status !== 'created') {
+      throw new Error('Invalid registration state');
+    }
+
+    const verificationChallenge = this.getChallenge();
+    const updatedRegistration: RegistrationData = {
+      ...registrationData,
+      verificationChallenge,
+      status: accepted ? 'pendingConfirmation' : 'rejected',
+    };
+
+    await this.cacheManager.set<RegistrationData>(
+      registrationId,
+      updatedRegistration,
+      { ttl: TTL_CACHE }
+    );
+
+    const providerAddress = getAccountFromDID(did).toLowerCase();
+    await this.rifGatewayContract.validateProvider(providerAddress);
+
+    this.logger.debug(updatedRegistration);
+
+    // TODO: trigger the verification process (TBD)
+    const emailVerificationService = await VerificationSenderFactory.getEmailVerificationService({
+      host: this.configService.get<string>('email.host'),
+      port: this.configService.get<number>('email.port'),
+      auth: {
+        user: this.configService.get<string>('email.user'),
+        pass: this.configService.get<string>('email.password'),
+      },
+    });
+
+    const emailResponse = await emailVerificationService.send(to, `
+      Email ${to} successfully verified, please sign this challenge to continue with the process:
+
+       > did: ${did}
+
+       > Challenge: ${verificationChallenge}
+
+       > Resource: '/listing/acknowledgeVerification'
+  `);
+
+    this.logger.debug('email response:', emailResponse);
+    this.logger.debug('email delivery state:', await emailVerificationService.logResponse(emailResponse));
+  }
+
+  async acknowledgeVerification({ registrationId, signature }: AcknowledgeVerification) {
+    this.logger.debug(registrationId);
+    const registrationData = await this.getRecordIfExists(registrationId);
+    const { did, status, verificationChallenge, email: emailAddress } = registrationData;
+
+    this.logger.debug(emailAddress);
+
+    if (status !== 'pendingConfirmation') {
+      throw new Error('Invalid registration state');
     }
 
     const expectedSigner = getAccountFromDID(did).toLowerCase();
@@ -102,40 +160,57 @@ export class ListingVerificationService {
       ...registrationData,
       status: 'verified',
     };
+
     await this.cacheManager.set<RegistrationData>(
       registrationId,
       updatedRegistration,
       { ttl: 0 },
     );
 
-    // We request right away the VC since we don't have
-    // the verification process ready, eventually this
-    // will be triggered by the entity who reviews the contract
-    return this.requestVC({
-      registrationId,
-      contractAddress,
-      did,
-      type: 'Lending',
-    }); // TODO: this will be inferred with ERC-165
+    const [vcEmailObservable, vcProviderObservable] = await Promise.all([
+      this.requestVC<EmailAddressClaim>({
+        registrationId,
+        did,
+        credentialType: 'EmailVerification',
+        credentialPayload: { emailAddress },
+      }),
+      this.requestVC<ServiceProviderClaim>({
+        registrationId,
+        did,
+        credentialType: 'RIFGatewayProviderVerification',
+        credentialPayload: { 
+          verification: {
+            type: 'ServiceProvider',
+            name: 'Validation of Service Provider'
+          }
+         }
+      })
+    ]);
+
+    const [vcEmail, vcProvider] = await firstValueFrom(
+      forkJoin([
+        vcEmailObservable.pipe(map(resp => resp)),
+        vcProviderObservable.pipe(map(resp => resp)),
+      ])
+    );
+
+    return {
+      vcEmail,
+      vcProvider
+    }
   }
 
-  private async requestVC({
+  private async requestVC<T>({
     registrationId,
-    contractAddress,
     did,
-    type,
-  }: VCRequest) {
-    const credentialPayload: ServiceVerificationCredentialPayload = {
-      serviceVerified: {
-        type,
-        contractAddress,
-      },
-    };
+    credentialType,
+    credentialPayload
+  }: VCRequest<T>) {
 
     const vcIssuanceChallenge = this.getChallenge();
     const hashMsg = ethers.utils.id(vcIssuanceChallenge);
     const signature = await signMessage(
-      process.env.RIF_OWNER_PRIV_KEY,
+      this.configService.get<string>('issuer.privateKey'),
       hashMsg,
     );
 
@@ -148,11 +223,12 @@ export class ListingVerificationService {
 
     this.logger.debug(
       'ListingVerificationService ~ requestVC ~ record',
-      { registrationId, contractAddress, did, type },
+      { registrationId, did },
     );
 
     return this.http
-      .post<Observable<any>>(`${BASE_URL}/vc-issuer`, {
+      .post<Observable<any>>(`${BASE_URL}/vc-issuer/requestVC`, {
+        credentialType,
         credentialPayload,
         did,
         vcIssuanceChallenge,
@@ -169,14 +245,14 @@ export class ListingVerificationService {
     );
 
     if (!registrationData) {
-      throw new RecordNotFoundError('service registration not found');
+      throw new RecordNotFoundError('Service registration not found');
     }
 
     return registrationData;
   }
 
-  private generateRegistrationId(did: string, contractAddress: string): string {
-    return ethers.utils.id(`${did}-${contractAddress}`);
+  private generateRegistrationId(did: string, email: string): string {
+    return ethers.utils.id(`${did}-${email}`);
   }
 
   private getChallenge(): string {

@@ -3,12 +3,13 @@ import { CacheModule, Module } from '@nestjs/common';
 import { VcIssuerModule } from './vc-issuer/vc-issuer.module';
 import { ListingVerificationModule } from './listing-verification/listing-verification.module';
 import { ConfigModule } from '@nestjs/config';
-import issuer from './vc-issuer/config/issuer';
+import issuerConfig from './vc-issuer/config/issuer';
+import emailConfig from './listing-verification/config/emailAccount';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
-      load: [issuer],
+      load: [issuerConfig, emailConfig],
       isGlobal: true
     }),
     CacheModule.register(),

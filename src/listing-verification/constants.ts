@@ -1,6 +1,7 @@
 export const serviceVerificationStatus = {
-  registered: 'registered',
+  created: 'created',
   underReview: 'underReview',
+  pendingConfirmation: 'pendingConfirmation',
   verified: 'verified',
   rejected: 'rejected',
 } as const;
