@@ -5,7 +5,7 @@
 [circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
 [circleci-url]: https://circleci.com/gh/nestjs/nest
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
+  <h1 align="center">RIF VC Issuer service</h1>
     <p align="center">
 <a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
 <a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
@@ -24,7 +24,7 @@
 
 ## Description
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+RIF VC Issuer service is a PoC that enables service providers to be verified within the RIF Gateway.
 
 ## Installation
 
@@ -133,6 +133,9 @@ As mentioned earlier, this part covers the phases that involves having a service
 4. DID registry contract
 5. VC registry
 
+***Flow***
+
+
 1. `Service Provider` request verification through `requestVerification` endpoint from `ListingService` and a verification record gets created.
 2. RIF Owner reviews and verifies the request via `verify` endpoint from `ListingService`, and approves / rejects it.
   - If approved, an email is sent with a challenge to be signed by the `Service Provider` and go to step 3.
@@ -150,7 +153,7 @@ As mentioned earlier, this part covers the phases that involves having a service
 
 ### API
 
-See the swagger page for deep understanding on the APIs
+See the [swagger page](http://localhost:3000/api) for deep understanding on the APIs
 
 ### Database
 
