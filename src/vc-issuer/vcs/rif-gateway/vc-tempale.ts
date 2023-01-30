@@ -9,6 +9,7 @@ export const createVCTemplate = <T extends JwtCredentialSubject>({
   nbf,
   vcTypes,
   credentialSubject,
+  ...res
 }: BaseVC<T>): JwtCredentialPayload => ({
   id,
   nbf,
@@ -19,5 +20,6 @@ export const createVCTemplate = <T extends JwtCredentialSubject>({
     issuanceDate: new Date(),
     type: ['VerifiableCredential', ...vcTypes],
     credentialSubject,
+    ...res
   },
 });
