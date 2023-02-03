@@ -21,7 +21,17 @@ export class IssueVcService {
     this.logger.debug('ISSUER_PRIV_KEY: ' + this.configService.get<string>('issuer.privateKey'));
 
     this.issuers = new Map();
+
+     // The following works with RSK checksum address only
     const issuer = createIssuerIdentity(this.configService.get<string>('issuer.privateKey')) as Issuer;
+    
+    // The following works Ethereum checksum address
+    // const issuer = new EthrDID({
+    //     identifier: process.env.ISSUER_ADDR,
+    //     privateKey: process.env.ISSUER_PRIV_KEY,
+    //     alg: 'ES256K',
+    //     signer: (data: string) => signMessage(process.env.ISSUER_PRIV_KEY, data)
+    // }) as Issuer;
     this.issuers.set(this.configService.get<string>('issuer.address'), issuer);
 
     // TODO: move this to a separate class
