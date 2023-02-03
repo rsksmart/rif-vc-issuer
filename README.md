@@ -115,7 +115,7 @@ Contain crypto/hash/addresses utils
 
 ## Architecture / Flow visuals
 
-[see](assets/vc-issuance-flow.png)
+![vc-issuer architecture](assets/vc-issuance-flow.png)
 
 
 ## Functional Flow
