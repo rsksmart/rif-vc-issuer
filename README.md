@@ -113,6 +113,10 @@ There are some other useful dependencies for creating, issuing and verifying vcs
 
 Contain crypto/hash/addresses utils
 
+## Architecture / Flow visuals
+
+![vs-issuer architecture](assets/vc-issuance-flow.png)
+
 
 ## Functional Flow
 
@@ -129,7 +133,7 @@ As mentioned earlier, this part covers the phases that involves having a service
 
 1. Listing service
 2. Issuer service
-3. RIF Gateway contract
+3. RIF Gateway contracts
 4. DID registry contract
 5. VC registry
 
@@ -137,7 +141,7 @@ As mentioned earlier, this part covers the phases that involves having a service
 
 
 1. `Service Provider` request verification through `requestVerification` endpoint from `ListingService` and a verification record gets created.
-2. RIF Owner reviews and verifies the request via `verify` endpoint from `ListingService`, and approves / rejects it.
+2. RIF Owner reviews and verifies the request via `verify` endpoint from `ListingService`, and approves / rejects it. This approval is not yet defined, ideally this would be the onboarding process (validation process) where some checks are performed against the provider being validated.
   - If approved, an email is sent with a challenge to be signed by the `Service Provider` and go to step 3.
   - If rejected, the request is removed from storage and nothing gets validated / updated.
 3. `Service Provider` signs the challenge coming from the email, and sends it through `acknowledge` endpoint from `ListingService`.
@@ -171,7 +175,6 @@ An in memory cache is used in place of a real database, there's one single struc
 ```
 
 this object is being updated constantly in memory as the process go forward. If the registration process is not concluded successfully, the data will expire in the cache. A different mechanism should be considered when using real a database.
-
 
 
 
